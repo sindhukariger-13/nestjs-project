@@ -97,3 +97,5 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 Updated Task 3
+## Task 3 Completed
+Implemented JWT authentication and role-based authorization
