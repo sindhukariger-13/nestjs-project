@@ -96,6 +96,13 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Task 3: Authentication & Authorization
+
+I implemented signup and login functionality for both Doctor and Patient roles in the application. I integrated JWT-based authentication to securely handle user sessions and token generation.
+
+I implemented role-based authorization to ensure that users can only access features permitted to their roles. I created protected routes that restrict access based on roles, such as Doctor-only and Patient-only endpoints.
+
+I verified the access control mechanism by testing token-based authentication, ensuring that only authorized users could access the respective protected routes.
 Updated Task 3
 ## Task 3 Completed
 Implemented JWT authentication and role-based authorization
