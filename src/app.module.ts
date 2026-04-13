@@ -9,8 +9,8 @@ import { AppController } from './app.controller';
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb://localhost:27017/hospital-db'),
-    AuthModule,       // 🔥 THIS IS THE FIX
+    MongooseModule.forRoot(process.env.MONGO_URI!), // ✅ ADD HERE
+    AuthModule,
     DoctorModule,
     PatientModule,
   ],
