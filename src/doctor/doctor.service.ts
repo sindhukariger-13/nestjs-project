@@ -13,19 +13,16 @@ export class DoctorService {
   async findDoctors(name?: string, specialization?: string) {
     const filter: any = {};
 
-    // 🔍 Search by name (case-insensitive)
     if (name) {
       filter.name = { $regex: name.trim(), $options: 'i' };
     }
 
-    // 🩺 Filter by specialization
     if (specialization) {
       filter.specialization = specialization.trim();
     }
 
     const doctors = await this.doctorModel.find(filter);
 
-    // ⚠️ Handle empty results gracefully
     if (!doctors || doctors.length === 0) {
       return {
         message: 'No doctors found',
@@ -37,5 +34,10 @@ export class DoctorService {
       message: 'Doctors fetched successfully',
       data: doctors,
     };
+  }
+
+  async createDoctor(data: any) {
+    const doctor = new this.doctorModel(data);
+    return doctor.save();
   }
 }

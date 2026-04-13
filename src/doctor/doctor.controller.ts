@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, Post, Body } from '@nestjs/common';
 import { DoctorService } from './doctor.service';
 
 @Controller('doctors')
@@ -10,7 +10,6 @@ export class DoctorController {
     @Query('name') name?: string,
     @Query('specialization') specialization?: string,
   ) {
-    // ⚠️ Handle invalid query values
     if (name && typeof name !== 'string') {
       throw new BadRequestException('Invalid name value');
     }
@@ -20,5 +19,11 @@ export class DoctorController {
     }
 
     return this.doctorService.findDoctors(name, specialization);
+  }
+
+  // 🔥 ADD THIS
+  @Post()
+  createDoctor(@Body() body: any) {
+    return this.doctorService.createDoctor(body);
   }
 }
