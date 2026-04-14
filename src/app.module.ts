@@ -1,19 +1,32 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuthModule } from './auth/auth.module';
 import { DoctorModule } from './doctor/doctor.module';
 import { PatientModule } from './patient/patient.module';
-
-import { AppController } from './app.controller';
+import { AvailabilityModule } from './availability/availability.module';
 
 @Module({
   imports: [
-    MongooseModule.forRoot(process.env.MONGO_URI!), // ✅ ADD HERE
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+
+    // ✅ FIX HERE
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGO_URI'),
+      }),
+      inject: [ConfigService],
+    }),
+
     AuthModule,
     DoctorModule,
     PatientModule,
+    AvailabilityModule,
   ],
-  controllers: [AppController],
 })
 export class AppModule {}
