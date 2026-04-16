@@ -1,18 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AvailabilityService } from './availability.service';
+import { Injectable } from '@nestjs/common';
+import { DoctorService } from '../doctor/doctor.service';
 
-describe('AvailabilityService', () => {
-  let service: AvailabilityService;
+@Injectable()
+export class AvailabilityService {
+  constructor(private doctorService: DoctorService) {}
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [AvailabilityService],
-    }).compile();
-
-    service = module.get<AvailabilityService>(AvailabilityService);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-});
+  async getDoctorAvailability(doctorId: string) {
+    return this.doctorService.getAvailability(doctorId);
+  }
+}
