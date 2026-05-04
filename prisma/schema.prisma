@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SchedulingType {
+  WAVE
+  STREAM
+}
+
 model Doctor {
   id              String   @id @default(uuid())
   name            String
@@ -15,6 +20,9 @@ model Doctor {
 
   slots           Slot[]
   waves           Wave[]
+  schedule        DoctorSchedule?
+
+  appointments    Appointment[]
 }
 
 model Slot {
@@ -26,6 +34,8 @@ model Slot {
   endTime    DateTime
 
   isBooked   Boolean  @default(false)
+
+  appointment Appointment?
 }
 
 model Wave {
@@ -38,9 +48,53 @@ model Wave {
 
   capacity    Int
   bookedCount Int      @default(0)
+
+  appointments Appointment[]
 }
 
-enum SchedulingType {
-  WAVE
-  STREAM
+model DoctorSchedule {
+  id           String   @id @default(uuid())
+  doctorId     String   @unique
+  workingDays  String[]
+  startTime    String
+  endTime      String
+  slotDuration Int
+
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+}
+
+model DoctorLeave {
+  id        String   @id @default(uuid())
+  doctorId  String
+  startDate DateTime
+  endDate   DateTime
+}
+
+model ClinicHoliday {
+  id     String   @id @default(uuid())
+  date   DateTime
+  reason String?
+}
+
+model Appointment {
+  id        String   @id @default(uuid())
+
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+
+  patientId String
+
+  // STREAM booking
+  slotId    String?   @unique
+  slot      Slot?     @relation(fields: [slotId], references: [id])
+
+  // WAVE booking
+  waveId    String?
+  wave      Wave?     @relation(fields: [waveId], references: [id])
+
+  date      DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([doctorId, date])
 }

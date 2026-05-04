@@ -19,10 +19,13 @@ export class DoctorController {
 
   // ✅ BOOK SLOT
   @Post('book/slot')
-  bookSlot(@Body('slotId') slotId: string) {
-    return this.doctorService.bookSlot(slotId);
-  }
-
+bookSlot(@Body() body: any) {
+  return this.doctorService.bookSlot(
+    body.slotId,
+    body.patientId,
+    body.doctorId,
+  );
+}
   // ✅ BOOK WAVE
   @Post('book/wave')
   bookWave(@Body('waveId') waveId: string) {
@@ -34,4 +37,22 @@ export class DoctorController {
   getAvailability(@Param('doctorId') doctorId: string) {
     return this.doctorService.getAvailability(doctorId);
   }
+
+  // 🔥 NEW: GET ALL DOCTORS
+  @Get()
+  getDoctors() {
+    return this.doctorService.getAllDoctors();
+  }
+// 🔥 CANCEL APPOINTMENT
+@Post('cancel')
+cancelAppointment(@Body() body: any) {
+  return this.doctorService.cancelAppointment(
+    body.appointmentId,
+    body.patientId,
+  );
+}
+@Get('appointments/:patientId')
+getMyAppointments(@Param('patientId') patientId: string) {
+  return this.doctorService.getMyAppointments(patientId);
+}
 }
