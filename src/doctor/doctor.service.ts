@@ -7,11 +7,7 @@ export class DoctorService {
   constructor(private prisma: PrismaService) {}
 
   // ================= CREATE DOCTOR =================
-  async createDoctor(data: {
-    name: string;
-    email: string;
-    schedulingType: 'STREAM' | 'WAVE';
-  }) {
+  async createDoctor(data: any) {
     const existing = await this.prisma.doctor.findUnique({
       where: { email: data.email },
     });
@@ -20,108 +16,81 @@ export class DoctorService {
       throw new BadRequestException('Doctor already exists');
     }
 
-    return this.prisma.doctor.create({
-      data,
-    });
+    return this.prisma.doctor.create({ data });
   }
 
   // ================= CREATE SCHEDULE =================
   async createSchedule(dto: CreateScheduleDto) {
-    const doctor = await this.prisma.doctor.findUnique({
-      where: { id: dto.doctorId },
-    });
-
-    if (!doctor) {
-      throw new BadRequestException('Doctor not found');
-    }
-
-    // ✅ FIX TIME CONVERSION
     const today = new Date();
 
-    const [startHour, startMin] = dto.startTime.split(':').map(Number);
-    const [endHour, endMin] = dto.endTime.split(':').map(Number);
+    const [sh, sm] = dto.startTime.split(':').map(Number);
+    const [eh, em] = dto.endTime.split(':').map(Number);
 
     const start = new Date(today);
-    start.setHours(startHour, startMin, 0, 0);
+    start.setHours(sh, sm, 0, 0);
 
     const end = new Date(today);
-    end.setHours(endHour, endMin, 0, 0);
+    end.setHours(eh, em, 0, 0);
 
     if (start >= end) {
       throw new BadRequestException('Invalid time range');
     }
 
-    // 🔴 Conflict check
-    const slotConflict = await this.prisma.slot.findFirst({
-      where: {
-        doctorId: dto.doctorId,
-        startTime: { lt: end },
-        endTime: { gt: start },
-      },
-    });
-
-    const waveConflict = await this.prisma.wave.findFirst({
-      where: {
-        doctorId: dto.doctorId,
-        startTime: { lt: end },
-        endTime: { gt: start },
-      },
-    });
-
-    if (slotConflict || waveConflict) {
-      throw new BadRequestException('Schedule conflict exists');
-    }
-
-    if (doctor.schedulingType === 'STREAM') {
-      return this.createStreamSlots(dto, start, end);
-    } else {
-      return this.createWave(dto, start, end);
-    }
+    return this.createStreamSlots(dto, start, end);
   }
 
-  // ================= STREAM SLOTS =================
-  async createStreamSlots(dto: CreateScheduleDto, start: Date, end: Date) {
-    const duration = dto.slotDuration;
-    const buffer = dto.bufferTime || 0;
-
-    if (!duration || duration <= 0) {
-      throw new BadRequestException('Invalid slot duration');
+  // ================= STREAM =================
+  async createStreamSlots(
+    dto: CreateScheduleDto,
+    start: Date,
+    end: Date,
+  ) {
+    if (!dto.slotDuration) {
+      throw new BadRequestException('slotDuration required');
     }
 
     let current = new Date(start);
-    const slotData: any[] = [];
 
-    while (current.getTime() + duration * 60000 <= end.getTime()) {
-      const slotEnd = new Date(current.getTime() + duration * 60000);
+    const slots: any[] = [];
 
-      slotData.push({
-        doctorId: dto.doctorId,
+    while (current < end) {
+      const slotEnd = new Date(
+        current.getTime() + dto.slotDuration * 60000,
+      );
+
+      if (slotEnd > end) break;
+
+      slots.push({
+        doctorId: 'b81bb348-acbe-4e94-81d2-3c3b84a6f761',
         startTime: new Date(current),
         endTime: slotEnd,
       });
 
       current = new Date(
-        current.getTime() + (duration + buffer) * 60000,
+        current.getTime() +
+          (dto.slotDuration + (dto.bufferTime || 0)) * 60000,
       );
     }
 
-    await this.prisma.slot.createMany({ data: slotData });
+    await this.prisma.slot.createMany({
+      data: slots,
+    });
 
     return {
-      message: 'Slots created successfully',
-      count: slotData.length,
+      message: 'Slots created',
+      count: slots.length,
     };
   }
 
   // ================= WAVE =================
   async createWave(dto: CreateScheduleDto, start: Date, end: Date) {
-    if (!dto.capacity || dto.capacity <= 0) {
-      throw new BadRequestException('Invalid capacity');
+    if (!dto.capacity) {
+      throw new BadRequestException('capacity required');
     }
 
     return this.prisma.wave.create({
       data: {
-        doctorId: dto.doctorId,
+        doctorId: 'b81bb348-acbe-4e94-81d2-3c3b84a6f761',
         startTime: start,
         endTime: end,
         capacity: dto.capacity,
@@ -139,144 +108,256 @@ export class DoctorService {
       throw new BadRequestException('Doctor not found');
     }
 
-    if (doctor.schedulingType === 'STREAM') {
-      const slots = await this.prisma.slot.findMany({
-        where: { doctorId },
-        orderBy: { startTime: 'asc' },
+    const slots = await this.prisma.slot.findMany({
+      where: {
+        doctorId,
+        startTime: { gte: new Date() },
+      },
+      orderBy: {
+        startTime: 'asc',
+      },
+    });
+
+    return {
+      type: 'STREAM',
+      data: slots.map((s) => ({
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        available: !s.isBooked,
+      })),
+    };
+  }
+
+  // ================= SAFE SLOT BOOKING =================
+  async bookSlot(slotId: string, patientId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const slot = await tx.slot.findUnique({
+        where: { id: slotId },
       });
 
-      return {
-        type: 'STREAM',
-        data: slots.map((s) => ({
-          id: s.id,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          available: !s.isBooked,
-        })),
-      };
-    } else {
-      const waves = await this.prisma.wave.findMany({
-        where: { doctorId },
-        orderBy: { startTime: 'asc' },
+      if (!slot) {
+        throw new BadRequestException('Slot not found');
+      }
+
+      const doctorId = slot.doctorId;
+
+      const leave = await tx.doctorLeave.findFirst({
+        where: {
+          doctorId,
+          startDate: { lte: slot.startTime },
+          endDate: { gte: slot.startTime },
+        },
       });
 
-      return {
-        type: 'WAVE',
-        data: waves.map((w) => ({
-          id: w.id,
-          startTime: w.startTime,
-          endTime: w.endTime,
-          availableSpots: w.capacity - w.bookedCount,
-        })),
-      };
+      if (leave) {
+        throw new BadRequestException('Doctor on leave');
+      }
+
+      const updated = await tx.slot.updateMany({
+        where: {
+          id: slotId,
+          isBooked: false,
+        },
+        data: {
+          isBooked: true,
+        },
+      });
+
+      if (updated.count === 0) {
+        throw new BadRequestException('Slot already booked');
+      }
+
+      return tx.appointment.create({
+        data: {
+          doctorId,
+          patientId,
+          slotId,
+          date: slot.startTime,
+        },
+      });
+    });
+  }
+
+  // ================= SAFE WAVE BOOKING =================
+  async bookWave(waveId: string, patientId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const wave = await tx.wave.findUnique({
+        where: { id: waveId },
+      });
+
+      if (!wave) {
+        throw new BadRequestException('Wave not found');
+      }
+
+      const doctorId = wave.doctorId;
+
+      const updated = await tx.wave.updateMany({
+        where: {
+          id: waveId,
+          bookedCount: {
+            lt: wave.capacity,
+          },
+        },
+        data: {
+          bookedCount: {
+            increment: 1,
+          },
+        },
+      });
+
+      if (updated.count === 0) {
+        throw new BadRequestException('Wave full');
+      }
+
+      return tx.appointment.create({
+        data: {
+          doctorId,
+          patientId,
+          waveId,
+          date: wave.startTime,
+        },
+      });
+    });
+  }
+
+  // ================= AUTO BOOK =================
+  async autoBook(doctorId: string, patientId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const slot = await tx.slot.findFirst({
+        where: {
+          doctorId,
+          isBooked: false,
+          startTime: {
+            gte: new Date(),
+          },
+        },
+        orderBy: {
+          startTime: 'asc',
+        },
+      });
+
+      if (!slot) {
+        throw new BadRequestException('No slots');
+      }
+
+      const leave = await tx.doctorLeave.findFirst({
+        where: {
+          doctorId,
+          startDate: { lte: slot.startTime },
+          endDate: { gte: slot.startTime },
+        },
+      });
+
+      if (leave) {
+        throw new BadRequestException('Doctor on leave');
+      }
+
+      const updated = await tx.slot.updateMany({
+        where: {
+          id: slot.id,
+          isBooked: false,
+        },
+        data: {
+          isBooked: true,
+        },
+      });
+
+      if (updated.count === 0) {
+        throw new BadRequestException('Slot taken');
+      }
+
+      return tx.appointment.create({
+        data: {
+          doctorId,
+          patientId,
+          slotId: slot.id,
+          date: slot.startTime,
+        },
+      });
+    });
+  }
+
+  // ================= APPLY LEAVE =================
+  async applyDoctorLeave(
+    doctorId: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    if (startDate > endDate) {
+      throw new BadRequestException('Invalid leave range');
     }
+
+    return this.prisma.doctorLeave.create({
+      data: {
+        doctorId,
+        startDate,
+        endDate,
+      },
+    });
   }
 
-  // ================= BOOK SLOT =================
-  async bookSlot(slotId: string, patientId: string, doctorId: string) {
-  const slot = await this.prisma.slot.findUnique({
-    where: { id: slotId },
-  });
-
-  if (!slot || slot.isBooked) {
-    throw new BadRequestException('Slot already booked or not found');
-  }
-
-  // mark slot booked
-  await this.prisma.slot.update({
-    where: { id: slotId },
-    data: { isBooked: true },
-  });
-
-  // create appointment
-  return this.prisma.appointment.create({
-    data: {
-      doctorId,
-      patientId,
-      slotId,
-      date: new Date(),
-    },
-  });
-  }
-  // ================= BOOK WAVE =================
-  async bookWave(waveId: string) {
-    const wave = await this.prisma.wave.findUnique({
-      where: { id: waveId },
+  // ================= CANCEL =================
+  async cancelAppointment(id: string, patientId: string) {
+    const appt = await this.prisma.appointment.findUnique({
+      where: { id },
     });
 
-    if (!wave) {
-      throw new BadRequestException('Wave not found');
+    if (!appt || appt.patientId !== patientId) {
+      throw new BadRequestException('Unauthorized');
     }
 
-    if (wave.bookedCount >= wave.capacity) {
-      throw new BadRequestException('Wave is full');
-    }
-
-    await this.prisma.wave.update({
-      where: { id: waveId },
-      data: { bookedCount: { increment: 1 } },
-    });
-
-    return { message: 'Wave booked successfully' };
-  }
-
-// ================= GET ALL DOCTORS =================
-async getAllDoctors() {
-  return this.prisma.doctor.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      schedulingType: true,
-    },
-  });
-}
-// ================= CANCEL APPOINTMENT =================
-async cancelAppointment(appointmentId: string, patientId: string) {
-  const appointment = await this.prisma.appointment.findUnique({
-    where: { id: appointmentId },
-  });
-
-  if (!appointment) {
-    throw new BadRequestException('Appointment not found');
-  }
-
-  if (appointment.patientId !== patientId) {
-    throw new BadRequestException('Unauthorized');
-  }
-
-  // 🔓 Free slot if STREAM
-  if (appointment.slotId) {
-    await this.prisma.slot.update({
-      where: { id: appointment.slotId },
-      data: { isBooked: false },
+    return this.prisma.appointment.delete({
+      where: { id },
     });
   }
 
-  // 🔻 Reduce count if WAVE
-  if (appointment.waveId) {
-    await this.prisma.wave.update({
-      where: { id: appointment.waveId },
-      data: { bookedCount: { decrement: 1 } },
+  // ================= MY APPOINTMENTS =================
+  async getMyAppointments(patientId: string) {
+    return this.prisma.appointment.findMany({
+      where: { patientId },
+      orderBy: {
+        date: 'asc',
+      },
     });
   }
 
-  return this.prisma.appointment.delete({
-    where: { id: appointmentId },
-  });
-}
-// ================= GET MY APPOINTMENTS =================
-async getMyAppointments(patientId: string) {
-  return this.prisma.appointment.findMany({
-    where: { patientId },
-    include: {
-      doctor: true,
-      slot: true,
-      wave: true,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-}
+  // ================= DELETE DOCTOR =================
+  async deleteDoctor(id: string) {
+    return this.prisma.doctor.delete({
+      where: { id },
+    });
+  }
+
+  // ================= GET DOCTORS =================
+  async getDoctors(address?: string, maxFee?: number) {
+    return this.prisma.doctor.findMany({
+      where: {
+        ...(address && {
+          address: {
+            contains: address,
+            mode: 'insensitive',
+          },
+        }),
+
+        ...(maxFee && {
+          consultationFee: {
+            lte: maxFee,
+          },
+        }),
+      },
+    });
+  }
+
+  // ================= GET ADDRESS =================
+  async getDoctorAddress(id: string) {
+    return this.prisma.doctor.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+      },
+    });
+  }
 }

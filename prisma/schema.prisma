@@ -13,88 +13,97 @@ enum SchedulingType {
 }
 
 model Doctor {
-  id              String   @id @default(uuid())
+  id              String           @id @default(uuid())
   name            String
-  email           String   @unique
+  email           String           @unique
   schedulingType  SchedulingType
+  address         String?
+  consultationFee Int?
 
   slots           Slot[]
   waves           Wave[]
   schedule        DoctorSchedule?
-
   appointments    Appointment[]
 }
 
 model Slot {
-  id         String   @id @default(uuid())
-  doctorId   String
-  doctor     Doctor   @relation(fields: [doctorId], references: [id])
+  id          String       @id @default(uuid())
 
-  startTime  DateTime
-  endTime    DateTime
+  doctorId    String
+  doctor      Doctor       @relation(fields: [doctorId], references: [id])
 
-  isBooked   Boolean  @default(false)
+  startTime   DateTime
+  endTime     DateTime
+
+  isBooked    Boolean      @default(false)
 
   appointment Appointment?
 }
 
 model Wave {
-  id          String   @id @default(uuid())
-  doctorId    String
-  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  id            String         @id @default(uuid())
 
-  startTime   DateTime
-  endTime     DateTime
+  doctorId      String
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
 
-  capacity    Int
-  bookedCount Int      @default(0)
+  startTime     DateTime
+  endTime       DateTime
 
-  appointments Appointment[]
+  capacity      Int
+  bookedCount   Int            @default(0)
+
+  appointments  Appointment[]
 }
 
 model DoctorSchedule {
-  id           String   @id @default(uuid())
-  doctorId     String   @unique
-  workingDays  String[]
-  startTime    String
-  endTime      String
-  slotDuration Int
+  id            String   @id @default(uuid())
 
-  doctor Doctor @relation(fields: [doctorId], references: [id])
+  doctorId      String   @unique
+  workingDays   String[]
+  startTime     String
+  endTime       String
+  slotDuration  Int
+
+  doctor        Doctor   @relation(fields: [doctorId], references: [id])
 }
 
 model DoctorLeave {
-  id        String   @id @default(uuid())
-  doctorId  String
-  startDate DateTime
-  endDate   DateTime
+  id          String    @id @default(uuid())
+
+  doctorId    String
+  startDate   DateTime
+  endDate     DateTime
 }
 
 model ClinicHoliday {
-  id     String   @id @default(uuid())
-  date   DateTime
-  reason String?
+  id        String    @id @default(uuid())
+
+  date      DateTime
+  reason    String?
 }
 
 model Appointment {
-  id        String   @id @default(uuid())
+  id               String    @id @default(uuid())
 
-  doctorId  String
-  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  doctorId         String
+  doctor           Doctor    @relation(fields: [doctorId], references: [id])
 
-  patientId String
+  patientId        String
 
-  // STREAM booking
-  slotId    String?   @unique
-  slot      Slot?     @relation(fields: [slotId], references: [id])
+  // STREAM BOOKING
+  slotId           String?   @unique
+  slot             Slot?     @relation(fields: [slotId], references: [id])
 
-  // WAVE booking
-  waveId    String?
-  wave      Wave?     @relation(fields: [waveId], references: [id])
+  // WAVE BOOKING
+  waveId           String?
+  wave             Wave?     @relation(fields: [waveId], references: [id])
 
-  date      DateTime
+  // OPTIONAL IDEMPOTENCY
+  idempotencyKey   String?   @unique
 
-  createdAt DateTime @default(now())
+  date             DateTime
+
+  createdAt        DateTime  @default(now())
 
   @@index([doctorId, date])
 }
