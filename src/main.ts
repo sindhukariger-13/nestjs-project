@@ -1,16 +1,18 @@
-require('dotenv').config(); // ✅ MUST BE FIRST LINE
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common'; // 👈 add this
 
 async function bootstrap() {
-  console.log("MONGO:", process.env.MONGO_URI); // 👈 DEBUG
-
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalPipes(new ValidationPipe());
+  // 🔥 ADD THIS BLOCK
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(3001);
 }
 bootstrap();

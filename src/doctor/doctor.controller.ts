@@ -1,58 +1,115 @@
-import { Body, Controller, Post, Get, Param } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  Param,
+  Delete,
+  Query,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+import { BookSlotDto } from './dto/book-slot.dto';
+import { BookWaveDto } from './dto/book-wave.dto';
+import { AuthGuard } from '@nestjs/passport';
 import { DoctorService } from './doctor.service';
 
 @Controller('doctor')
 export class DoctorController {
   constructor(private readonly doctorService: DoctorService) {}
 
-  // ✅ CREATE DOCTOR
+  // ================= CREATE DOCTOR =================
+  @UseGuards(AuthGuard('jwt'))
   @Post()
   createDoctor(@Body() body: any) {
     return this.doctorService.createDoctor(body);
   }
 
-  // ✅ CREATE SCHEDULE
+  // ================= CREATE SCHEDULE =================
+  @UseGuards(AuthGuard('jwt'))
   @Post('schedule')
-  createSchedule(@Body() body: any) {
-    return this.doctorService.createSchedule(body);
+  createSchedule(@Req() req, @Body() body: any) {
+    return this.doctorService.createSchedule({
+      ...body,
+      doctorId: req.user.id,
+    });
   }
 
-  // ✅ BOOK SLOT
-  @Post('book/slot')
-bookSlot(@Body() body: any) {
+  // ================= BOOK SLOT =================
+  @UseGuards(AuthGuard('jwt'))
+ @Post('book/slot')
+bookSlot(@Req() req, @Body() body: BookSlotDto) {
   return this.doctorService.bookSlot(
     body.slotId,
-    body.patientId,
-    body.doctorId,
+    req.user.id,
   );
 }
-  // ✅ BOOK WAVE
-  @Post('book/wave')
-  bookWave(@Body('waveId') waveId: string) {
-    return this.doctorService.bookWave(waveId);
-  }
 
-  // ✅ GET AVAILABILITY
+  // ================= BOOK WAVE =================
+  @UseGuards(AuthGuard('jwt'))
+ @Post('book/wave')
+bookWave(@Req() req, @Body() body: BookWaveDto) {
+  return this.doctorService.bookWave(
+    body.waveId,
+    req.user.id,
+  );
+}
+  // ================= GET AVAILABILITY =================
   @Get('availability/:doctorId')
   getAvailability(@Param('doctorId') doctorId: string) {
     return this.doctorService.getAvailability(doctorId);
   }
 
-  // 🔥 NEW: GET ALL DOCTORS
+  // ================= GET DOCTORS =================
   @Get()
-  getDoctors() {
-    return this.doctorService.getAllDoctors();
+  getDoctors(
+    @Query('address') address?: string,
+    @Query('maxFee') maxFee?: string,
+  ) {
+    return this.doctorService.getDoctors(
+      address,
+      maxFee ? Number(maxFee) : undefined,
+    );
   }
-// 🔥 CANCEL APPOINTMENT
-@Post('cancel')
-cancelAppointment(@Body() body: any) {
-  return this.doctorService.cancelAppointment(
-    body.appointmentId,
-    body.patientId,
-  );
-}
-@Get('appointments/:patientId')
-getMyAppointments(@Param('patientId') patientId: string) {
-  return this.doctorService.getMyAppointments(patientId);
-}
+
+  // ================= GET ADDRESS =================
+  @Get(':id/address')
+  getDoctorAddress(@Param('id') id: string) {
+    return this.doctorService.getDoctorAddress(id);
+  }
+
+  // ================= APPLY LEAVE =================
+  @UseGuards(AuthGuard('jwt'))
+  @Post('leave')
+  applyLeave(@Req() req, @Body() body: any) {
+    return this.doctorService.applyDoctorLeave(
+      req.user.id,
+      new Date(body.startDate),
+      new Date(body.endDate),
+    );
+  }
+
+  // ================= CANCEL =================
+  @UseGuards(AuthGuard('jwt'))
+  @Post('cancel')
+  cancelAppointment(@Req() req, @Body() body: any) {
+    return this.doctorService.cancelAppointment(
+      body.appointmentId,
+      req.user.id,
+    );
+  }
+
+  // ================= MY APPOINTMENTS =================
+  @UseGuards(AuthGuard('jwt'))
+  @Get('appointments')
+  getMyAppointments(@Req() req) {
+    return this.doctorService.getMyAppointments(req.user.id);
+  }
+
+  // ================= DELETE DOCTOR =================
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id')
+  deleteDoctor(@Param('id') id: string) {
+    return this.doctorService.deleteDoctor(id);
+  }
 }
